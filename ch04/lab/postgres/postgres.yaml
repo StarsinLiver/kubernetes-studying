@@ -1,0 +1,42 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: ch04-lab-db     # 서비스 이름 == 도메인 이름
+spec:
+  ports:
+    - port: 5432        # 5432 번으로 들어오는 외부 포트를
+      targetPort: 5432  # 파드 5432번 다이렉트
+  selector:
+    app: ch04-lab-db    # 셀렉터 app=ch04-lad-db
+  type: ClusterIP       # ClusterIP로 정의
+---
+apiVersion: apps/v1
+kind: Deployment        # 디플로이먼트를 정의
+metadata:
+  name: ch04-lab-db     # 디플로이먼트 이름 정의
+spec:
+  selector:
+    matchLabels:
+      app: ch04-lab-db      # 셀렉터 app=ch04-lab-db를 관리한다
+  template:
+    metadata:
+      labels:
+        app: ch04-lab-db
+    spec:
+      containers:
+        - name: db          #  컨테이너 이름
+          image: postgres:11.6-alpine # 컨테이너 이미지
+          env:                        # 이 아래로 환경변수가 정의
+          - name: POSTGRES_PASSWORD_FILE   # 새로운 환경 변수 이름 정의
+            value: /db-secrets/password    # 환경 변수의 value 값 참조
+          volumeMounts:                    # 컨테이너 볼륨을 마운트 
+            - name: secret                 # 마운트할 볼륨 이름
+              mountPath: "/db-secrets"     # 볼륨이 마운트될 경로
+      volumes:                             
+        - name: secret                     # 이 이름이 볼륨 마운트 이름과 일치해야함   
+          secret:                          # 비밀값에서 볼륨 생성
+            secretName: ch04-lab-db-secret  # 볼륨을 만들 비밀값 이름
+            defaultMode: 0400               # 파일 권한 설정
+            items:
+            - key: PASSWORD                 # 시크릿 키값
+              path: password                # /db-secrets/password파일에 비밀값 데이터가 전달된다

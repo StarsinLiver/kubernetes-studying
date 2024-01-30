@@ -1,0 +1,29 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: stateful
+  labels:
+    kiamol: ch08
+spec:
+  selector:               # 스테이트풀셋에도 셀렉터가 쓰인다.
+    matchLabels:
+      kiamol: ch08-lab
+  serviceName: nginx   # 스테이트풀셋은 연결된 서비스가 필요하다.
+  replicas: 3
+  template:
+    metadata:
+      labels:
+        kiamol: ch08-lab
+    spec:
+      containers:
+        - name: nginx
+          image: nginx:1.17-alpine
+          ports:
+            - containerPort: 80
+          volumeMounts:
+            - name: backup
+              mountPath: /var/log/nginx/
+      volumes:
+        - name: backup
+          persistentVolumeClaim:
+            claimName: todo-db-backup-pvc

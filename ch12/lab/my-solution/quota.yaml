@@ -1,0 +1,30 @@
+
+apiVersion: v1
+kind: ResourceQuota               # 리소스쿼터 객체
+metadata:                         # 지정된 네임스페이스에 적용된다.
+  name: pi-dev-quota
+  namespace: pi-dev
+spec:
+  hard:                           # CPU 사용량 또는 메모리 사용량을 제한
+    # limits.memory: 150Mi          # 150MB 제한
+    limits.cpu: 1000m              # 500밀리코어 === 0.5코어
+---
+apiVersion: v1
+kind: ResourceQuota               # 리소스쿼터 객체
+metadata:                         # 지정된 네임스페이스에 적용된다.
+  name: pi-test-quota
+  namespace: pi-test
+spec:
+  hard:                           # CPU 사용량 또는 메모리 사용량을 제한
+    # limits.memory: 150Mi          # 150MB 제한
+    limits.cpu: 1000m              # 500밀리코어 === 0.5코어
+---
+apiVersion: v1
+kind: ResourceQuota               # 리소스쿼터 객체
+metadata:                         # 지정된 네임스페이스에 적용된다.
+  name: pi-uat-quota
+  namespace: pi-uat
+spec:
+  hard:                           # CPU 사용량 또는 메모리 사용량을 제한
+    # limits.memory: 150Mi          # 150MB 제한
+    limits.cpu: 2000m              # 500밀리코어 === 0.5코어

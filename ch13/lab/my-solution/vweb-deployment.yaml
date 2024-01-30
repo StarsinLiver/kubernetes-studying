@@ -1,0 +1,33 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name:  vweb
+  namespace: kiamol-ch13-lab
+spec:
+  selector:
+    matchLabels:
+      app: vweb
+  template:
+    metadata:
+      labels:
+        app: vweb
+    spec:
+      containers:
+        - name: web
+          image: kiamol/ch09-vweb:v1
+        volumeMounts:
+        - name: varlog
+          mountPath: /var/log
+        - name: varlibdockercontainers
+          mountPath: /var/lib/docker/containers
+          readOnly: true
+          ports:
+            - name: http
+              containerPort: 80
+      volumes:
+      - name: varlog
+        hostPath:
+          path: /var/log
+      - name: varlibdockercontainers
+        hostPath:
+          path: /var/lib/docker/containers

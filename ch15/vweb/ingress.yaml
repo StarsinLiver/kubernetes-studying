@@ -1,0 +1,34 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: vweb              # nginx의 특정 기능에 대한 설정
+  labels:
+    kiamol: ch15
+  annotations:
+    nginx.ingress.kubernetes.io/rewrite-target: /     # 해당 경로가 없으면 리라이팅
+spec:
+  rules:
+  - host: vweb.kiamol.local   # 아래의 규칙은 이 도메인에서만 적용된다.
+    http:
+      paths:
+      - path: /               # / 에 대한 요청은
+        pathType: Prefix      # 애플리케이션 버전 v2로 전달된다.
+        backend:
+          service:
+            name: vweb-v2
+            port: 
+             number: 80
+      - path: /v1
+        pathType: Prefix
+        backend:
+          service:
+            name: vweb-v1
+            port: 
+              number: 80
+      - path: /v2
+        pathType: Prefix
+        backend:
+          service:
+            name: vweb-v2
+            port:
+              number: 80

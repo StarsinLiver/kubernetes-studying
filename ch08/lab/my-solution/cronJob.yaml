@@ -1,0 +1,25 @@
+apiVersion: batch/v1       # 현재 batch/v1 로 바뀌었음
+kind: CronJob
+metadata:
+  name: todo-log
+  labels:
+    kiamol: ch08
+spec:
+  schedule: "*/2 * * * *"        # see https://crontab.guru # 작업을 2분에 한번씩 실행
+  concurrencyPolicy: Forbid      # 현재 작업이 끝나기 전까지 새 작업을 실행하지 않음
+  jobTemplate:                   # 잡 템플릿
+    spec:
+      template:
+        spec:
+          restartPolicy: Never   # 필수 옵션
+          containers:            # 파드 정의
+            - name: log
+              image: postgres:11.6-alpine
+              command: ['ls','-l','/var/log/nginx/']
+              volumeMounts:
+                - name: backup
+                  mountPath: /var/log/nginx/
+          volumes:
+          - name: backup
+            persistentVolumeClaim:
+             claimName: todo-db-backup-pvc

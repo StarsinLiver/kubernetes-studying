@@ -1,0 +1,27 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: pi-web
+  labels:
+    kiamol: ch12-lab
+spec:
+  replicas: 4
+  selector:
+    matchLabels:
+      app: pi-web
+  template:
+    metadata:
+      labels:
+        app: pi-web
+    spec:
+      containers:
+        - image: kiamol/ch05-pi
+          command: ["dotnet", "Pi.Web.dll", "-m", "web"]
+          name: web
+          ports:
+            - containerPort: 80
+              name: http
+          # TODO - add resource limits
+          resources:          # 리소스 제한
+            limits:           
+              cpu: 200m       # CPU 250밀리 코어적용 === 0.25코어에 해당한다.

@@ -1,0 +1,3 @@
+environment: test
+configControllerEnabled: true
+servicePort: 8088

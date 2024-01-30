@@ -1,0 +1,21 @@
+apiVersion: admissionregistration.k8s.io/v1
+kind: MutatingWebhookConfiguration
+metadata:
+  name: nonrootpolicy
+  labels:
+    kiamol: ch16
+webhooks:
+  - name: nonrootpolicy.kiamol.net
+    rules:
+      - operations: [ "CREATE", "UPDATE" ]
+        apiGroups: [""]
+        apiVersions: ["v1"]
+        resources: ["pods"]
+    clientConfig:
+      service:
+        name: admission-webhook
+        namespace: default
+        path: "/mutate"
+      caBundle: {{ .Values.caBundle }}
+    admissionReviewVersions: ["v1"]      # 버전이 업데이트 되면서 필수 요소
+    sideEffects: None                   # 버전이 업데이트 되면서 필수 요소

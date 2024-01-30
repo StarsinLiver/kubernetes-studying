@@ -1,0 +1,17 @@
+﻿{
+    "apiVersion": "storage.k8s.io/v1",
+    "kind": "StorageClass",
+    "metadata": {
+        "annotations": {
+            "kubectl.kubernetes.io/last-applied-configuration": "{\"apiVersion\":\"storage.k8s.io/v1\",\"kind\":\"StorageClass\",\"metadata\":{\"annotations\":{\"storageclass.kubernetes.io/is-default-class\":\"true\"},\"name\":\"hostpath\"},\"provisioner\":\"docker.io/hostpath\",\"reclaimPolicy\":\"Delete\",\"volumeBindingMode\":\"Immediate\"}\n",
+            "storageclass.kubernetes.io/is-default-class": "true"
+        },
+        "creationTimestamp": "2024-01-08T05:23:10Z",
+        "name": "hostpath",
+        "resourceVersion": "388",
+        "uid": "584113aa-5e8f-4798-91aa-3387dddfb038"
+    },
+    "provisioner": "docker.io/hostpath",
+    "reclaimPolicy": "Delete",
+    "volumeBindingMode": "Immediate"
+}

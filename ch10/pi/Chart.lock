@@ -1,0 +1,9 @@
+dependencies:
+- name: vweb
+  repository: https://kiamol.net
+  version: 2.0.0
+- name: proxy
+  repository: file://../proxy
+  version: 0.1.0
+digest: sha256:25553ea5a1d270e71b14f2bb94785d5ee770eeea77463213d2ffcfe1fb205a5d
+generated: "2024-01-17T15:18:52.7343518+09:00"

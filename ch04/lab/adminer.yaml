@@ -1,0 +1,29 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: adminer-web   # adminer-web 서비스 정의
+spec:
+  ports:
+    - port: 8082      # 서버 포트 8082번
+      targetPort: 8080  # 포드 포트 8080번 다이렉트
+  selector:
+    app: adminer-web    # app=adminer-web 이라는 셀렉터에 있는 모든 포드들
+  type: LoadBalancer    
+---
+apiVersion: apps/v1
+kind: Deployment        # 디플로이먼트 정의
+metadata:
+  name: adminer-web     # adminer-web 디플로이먼트 이름 정의
+spec:
+  selector:
+    matchLabels:
+      app: adminer-web     # app=adminer-web 이라는 셀렉터 관리대상 정의
+  template:
+    metadata:
+      labels:
+        app: adminer-web
+    spec:
+      containers:
+        - name: web       # 파드에서 정의하는 컨테이너 이름        
+          image: adminer:4.7-standalone # 파드 이미지 정의
+          args: ["php", "-S", "0.0.0.0:8080", "-t", "/var/www/html"]

@@ -1,0 +1,31 @@
+# proxy 차트를 의존 차트로 사용하려면 상위 차트의 정의에서 해당 차트를 의존 차트 목록에 추가하여 하위 차트로 삼아야한다.
+# 그다음 하위 차트의 설정값을 상위 차트의 정의에서 지정한다.
+# 이때 하위 차트의 설정값을 참조할 때는 설정값 이름 앞에 차트 이름을 붙인다.
+# 예를 들어 proxy 차트의 설정값 upstreamToProxy는 proxy.upstreamToProxy가 된다.
+
+<!-- pi/values.yaml -->
+# number of app Pods to run : 애플리케이션 파드수 (pi)
+replicaCount: 2             
+# type of the app Service:    서비스 유형         (pi)
+serviceType: LoadBalancer
+# settings for vweb
+vweb:                         # vweb의 values.yaml
+   # whether to deploy vweb
+   enabled: false    
+# settings for the reverse proxy
+proxy:                        # proxy의 values.yaml
+  # whether to deploy the proxy
+  enabled: false
+  # name of the app Service to proxy
+  upstreamToProxy: "{{ .Release.Name }}-web"
+  # port of the proxy Service
+  servicePort: 8030
+  # number of proxy Pods to run
+  replicaCount: 2
+
+# 이 설정이 적용되면 프록시 없이 로드밸런서 서비스와 함께 애플리케이션 자체만 배치된다.
+# 설정값 proxy.enabled 가 pi 차트의 하위 차트 proxy의 조건으로 지정되어 있으므로 설치할 때 설정값에서 이를 오버라이드 하지 않는 한 하위 차트의 정의 자체가 무시된다.
+
+# 살펴볼 곳이 한가지 더 있다. 원주율 애플리케이션의 서비스 이름이 템플릿 변수로 정의되어 있는데 이 템플릿 변수에 릴리스 이름이 쓰였다.
+# 이 템플릿 변수는 같은 차트를 여러 벌 설치하는 데 꼭 필요한 설정이지만, proxy 하위 차트의 기본값을 지정하기가 까다로워진다.
+# 프록시 대상 서버 이름이 원주율 애플리케이션이름과 일치해야하므로 설정값 파일에서도 서비스 이름을 템플릿 변수로 지정해야 같은 릴리스의 프록시와 서비스가 연결 될 수 있다.
