@@ -172,9 +172,9 @@ Pod 업데이트 관리
 
 일회성 / 스케줄 작업
 
-🌐 5. 네트워크 관련
+### 🌐 5. 네트워크 관련
 
-### 🔹 CNI (Container Network Interface)
+🔹 CNI (Container Network Interface)
 
 Pod 네트워크 담당
 
