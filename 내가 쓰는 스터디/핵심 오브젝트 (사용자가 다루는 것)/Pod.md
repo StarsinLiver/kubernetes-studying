@@ -660,7 +660,7 @@ aa23cda...          registry.k8s.io/pause:3.9   nginx-pod
 여기서
 
 ```
-registry.k8s.io/pause 이미지가 있다면 pause container다.
+이 container 들이 pause container다.
 ```
 
 ### Pod 기준으로 보기
@@ -732,7 +732,7 @@ mnt -> mnt:[4026532803]
 pause container namespace에 들어가면 Pod 네트워크를 볼 수 있다.
 
 ```
-➜  nginx-config nsenter -t <pod-pid> -n ip addr
+➜  nsenter -t <pod-pid> -n ip addr
 2: eth0@if16: ...
     inet 10.244.1.7/32 scope global eth0
        valid_lft forever preferred_lft forever
