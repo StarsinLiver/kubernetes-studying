@@ -62,6 +62,13 @@
     - [Kubernetes Pod cgroup](#kubernetes-pod-cgroup)
     - [Pod cgroup 확인](#pod-cgroup-확인)
     - [Kubernetes 핵심 구조 정리](#kubernetes-핵심-구조-정리)
+- [5장 Pod.yaml](#5장-podyaml)
+  - [1️⃣ Kubernetes Pod YAML은 "모든 옵션"이 있는 문서가 아니다](#1️⃣-kubernetes-pod-yaml은-모든-옵션이-있는-문서가-아니다)
+  - [2️⃣ Pod YAML 전체 예제 (거의 모든 옵션)](#2️⃣-pod-yaml-전체-예제-거의-모든-옵션)
+  - [3️⃣ Pod YAML 실제 동작 흐름](#3️⃣-pod-yaml-실제-동작-흐름)
+  - [4️⃣ Pod 정보는 etcd에 저장된다.](#4️⃣-pod-정보는-etcd에-저장된다)
+    - [etcd 내부](#etcd-내부)
+  - [5️⃣ Pod YAML을 "모든 옵션" 확인하는 공식 방법](#5️⃣-pod-yaml을-모든-옵션-확인하는-공식-방법)
 
 ---
 
@@ -1373,3 +1380,234 @@ cgroup
    │
 CPU / Memory 제한
 ```
+
+---
+
+# 5장 Pod.yaml
+
+## 1️⃣ Kubernetes Pod YAML은 "모든 옵션"이 있는 문서가 아니다
+
+Pod YAML은 Kubernetes API Object야.
+
+즉, 실제 정의는 Kubernetes API Server의 PodSpec / Pod Object Schema로 정의되어 있어.
+
+```
+구조는 이렇게 생긴다.
+
+Pod
+ ├─ apiVersion
+ ├─ kind
+ ├─ metadata
+ ├─ spec
+ │   ├─ containers
+ │   ├─ volumes
+ │   ├─ restartPolicy
+ │   ├─ nodeSelector
+ │   ├─ affinity
+ │   ├─ tolerations
+ │   ├─ serviceAccountName
+ │   ├─ securityContext
+ │   ├─ hostNetwork
+ │   ├─ dnsPolicy
+ │   ├─ imagePullSecrets
+ │   ├─ initContainers
+ │   ├─ ephemeralContainers
+ │   └─ ...
+ └─ status (runtime 정보)
+```
+
+## 2️⃣ Pod YAML 전체 예제 (거의 모든 옵션)
+
+```yaml
+apiVersion: v1
+kind: Pod
+
+metadata:
+  name: my-pod
+  namespace: default
+  labels:
+    app: nginx
+  annotations:
+    description: example pod
+
+spec:
+  restartPolicy: Always
+
+  nodeSelector:
+    disktype: ssd
+
+  serviceAccountName: default
+
+  hostNetwork: false
+  hostPID: false
+  hostIPC: false
+
+  dnsPolicy: ClusterFirst
+
+  imagePullSecrets:
+    - name: regcred
+
+  securityContext:
+    runAsUser: 1000
+    fsGroup: 2000
+
+  containers:
+    - name: nginx
+      image: nginx:latest
+
+      command: ["nginx"]
+      args: ["-g", "daemon off;"]
+
+      workingDir: /usr/share/nginx/html
+
+      ports:
+        - containerPort: 80
+          protocol: TCP
+
+      env:
+        - name: ENV
+          value: prod
+
+      envFrom:
+        - configMapRef:
+            name: my-config
+
+      resources:
+        limits:
+          cpu: "1"
+          memory: "512Mi"
+        requests:
+          cpu: "500m"
+          memory: "256Mi"
+
+      volumeMounts:
+        - name: data
+          mountPath: /data
+
+      livenessProbe:
+        httpGet:
+          path: /
+          port: 80
+        initialDelaySeconds: 10
+        periodSeconds: 5
+
+      readinessProbe:
+        httpGet:
+          path: /
+          port: 80
+        initialDelaySeconds: 5
+        periodSeconds: 3
+
+      startupProbe:
+        httpGet:
+          path: /
+          port: 80
+        failureThreshold: 30
+        periodSeconds: 10
+
+      lifecycle:
+        postStart:
+          exec:
+            command: ["echo", "started"]
+        preStop:
+          exec:
+            command: ["echo", "stopping"]
+
+      securityContext:
+        privileged: false
+        allowPrivilegeEscalation: false
+
+  initContainers:
+    - name: init
+      image: busybox
+      command: ["sh", "-c", "echo init"]
+
+  volumes:
+    - name: data
+      emptyDir: {}
+
+  tolerations:
+    - key: "node-role.kubernetes.io/control-plane"
+      operator: "Exists"
+      effect: "NoSchedule"
+
+  affinity:
+    nodeAffinity:
+      requiredDuringSchedulingIgnoredDuringExecution:
+        nodeSelectorTerms:
+          - matchExpressions:
+              - key: disktype
+                operator: In
+                values:
+                  - ssd
+
+  terminationGracePeriodSeconds: 30
+```
+
+## 3️⃣ Pod YAML 실제 동작 흐름
+
+이 YAML이 실제로 어떻게 동작하는지 보자.
+
+```
+kubectl apply -f pod.yaml
+
+[흐름]
+kubectl
+   ↓
+API Server
+   ↓
+etcd (저장)
+   ↓
+Scheduler
+   ↓
+Node 선택
+   ↓
+kubelet
+   ↓
+Container Runtime
+   ↓
+containerd / CRI-O
+   ↓
+container 생성
+```
+
+## 4️⃣ Pod 정보는 etcd에 저장된다.
+
+### etcd 내부
+
+Pod은 JSON으로 저장된다.
+
+예시 key
+
+```
+/registry/pods/default/my-pod
+```
+
+확인 방법
+
+```
+(컨트롤플레인에서)
+etcdctl get /registry/pods/default/my-pod
+```
+
+## 5️⃣ Pod YAML을 "모든 옵션" 확인하는 공식 방법
+
+실무에서 가장 많이 쓰는 방법.
+
+```
+kubectl explain pod.spec
+```
+
+예
+
+```
+kubectl explain pod.spec.containers
+```
+
+또는
+
+```
+kubectl explain pod --recursive
+```
+
+그러면 모든 옵션이 트리 구조로 나온다.
