@@ -42,8 +42,23 @@
   - [18. VXLAN 인터페이스 생성](#18-vxlan-인터페이스-생성)
   - [19. overlay 패킷 흐름](#19-overlay-패킷-흐름)
   - [20. 전체 구조](#20-전체-구조)
-- [3장 Calico 는 보통 host-ipam 을 사용하지 않는다.](#3장-calico-는-보통-host-ipam-을-사용하지-않는다)
-    - [1️⃣ /var/lib/cni/networks 는 언제 사용되는가](#1️⃣-varlibcninetworks-는-언제-사용되는가)
+- [3장 Calico 전체 아키텍처](#3장-calico-전체-아키텍처)
+  - [1️⃣ Calico 전체 아키텍처](#1️⃣-calico-전체-아키텍처)
+  - [2️⃣ Calico 주요 컴포넌트](#2️⃣-calico-주요-컴포넌트)
+  - [3️⃣ Calico CNI Plugin](#3️⃣-calico-cni-plugin)
+  - [4️⃣ Felix (Calico의 핵심)](#4️⃣-felix-calico의-핵심)
+    - [Felix의 역할](#felix의-역할)
+    - [Felix가 하는 일 (가장 중요)](#felix가-하는-일-가장-중요)
+      - [Felix는 routing table을 만든다.](#felix는-routing-table을-만든다)
+      - [Felix는 iptables도 만든다.](#felix는-iptables도-만든다)
+  - [6️⃣ BIRD (BGP daemon)](#6️⃣-bird-bgp-daemon)
+  - [7️⃣ Typha](#7️⃣-typha)
+    - [Felix 의 문제점](#felix-의-문제점)
+  - [8️⃣ Calico 네트워크 모드](#8️⃣-calico-네트워크-모드)
+  - [9️⃣ Pod 생성 시 실제 흐름](#9️⃣-pod-생성-시-실제-흐름)
+  - [🔥 Calico 구조 핵심 정리](#-calico-구조-핵심-정리)
+- [4장 Calico 는 보통 host-ipam 을 사용하지 않는다.](#4장-calico-는-보통-host-ipam-을-사용하지-않는다)
+  - [1️⃣ /var/lib/cni/networks 는 언제 사용되는가](#1️⃣-varlibcninetworks-는-언제-사용되는가)
   - [2️⃣ Calico는 보통 host-local IPAM을 안 쓴다](#2️⃣-calico는-보통-host-local-ipam을-안-쓴다)
   - [3️⃣ calico-ipam 은 어디에 저장하나](#3️⃣-calico-ipam-은-어디에-저장하나)
   - [4️⃣ Calico IP 할당 구조](#4️⃣-calico-ip-할당-구조)
@@ -53,7 +68,7 @@
   - [8️⃣ Calico 실제 네트워크 인터페이스](#8️⃣-calico-실제-네트워크-인터페이스)
   - [9️⃣ Pod veth 이름](#9️⃣-pod-veth-이름)
   - [10. Calico의 Pod IP 할당 흐름](#10-calico의-pod-ip-할당-흐름)
-- [4장 Calico가 Pod 생성시 실제로 하는 일](#4장-calico가-pod-생성시-실제로-하는-일)
+- [5장 Calico가 Pod 생성시 실제로 하는 일](#5장-calico가-pod-생성시-실제로-하는-일)
   - [1️⃣ Pod 생성 → kubelet → CNI 호출](#1️⃣-pod-생성--kubelet--cni-호출)
   - [2️⃣ CNI가 받는 정보](#2️⃣-cni가-받는-정보)
   - [3️⃣ Calico IPAM 동작](#3️⃣-calico-ipam-동작)
@@ -71,7 +86,7 @@
   - [15. 실제 Node 인터페이스들](#15-실제-node-인터페이스들)
   - [16. 실제 route table 예](#16-실제-route-table-예)
   - [🔥 실제로 확인하는 방법](#-실제로-확인하는-방법)
-- [5장 아니 나는 Calico 의 IPIP Mode 라구요!](#5장-아니-나는-calico-의-ipip-mode-라구요)
+- [6장 아니 나는 Calico 의 IPIP Mode 라구요!](#6장-아니-나는-calico-의-ipip-mode-라구요)
   - [1️⃣ IPIP 모드란 무엇인가](#1️⃣-ipip-모드란-무엇인가)
   - [2️⃣ 왜 이런걸 사용하나](#2️⃣-왜-이런걸-사용하나)
   - [3️⃣ 실제 패킷 흐름](#3️⃣-실제-패킷-흐름)
@@ -89,6 +104,15 @@
   - [9️⃣ Calico 현재 설정 확인](#9️⃣-calico-현재-설정-확인)
   - [🔟 IPIP vs VXLAN](#-ipip-vs-vxlan)
   - [🔥 Calico IPIP는 Linux kernel 기능](#-calico-ipip는-linux-kernel-기능)
+- [7장 그렇다면 CNI 는 외부 node 와 통신할 때 어떻게 동작할까](#7장-그렇다면-cni-는-외부-node-와-통신할-때-어떻게-동작할까)
+  - [1️⃣ Pod → Pod 통신에서 실제 흐름](#1️⃣-pod--pod-통신에서-실제-흐름)
+  - [2️⃣ Calico IPIP가 하는 일](#2️⃣-calico-ipip가-하는-일)
+  - [3️⃣ 실제 패킷 구조](#3️⃣-실제-패킷-구조)
+  - [4️⃣ 그래서 방화벽에서 중요한 것](#4️⃣-그래서-방화벽에서-중요한-것)
+  - [5️⃣ 패킷 흐름 전체](#5️⃣-패킷-흐름-전체)
+  - [6️⃣ 실제 Linux 인터페이스](#6️⃣-실제-linux-인터페이스)
+  - [7️⃣ 핵심 정리](#7️⃣-핵심-정리)
+  - [8️⃣ Calico에는 3가지 모드가 있다.](#8️⃣-calico에는-3가지-모드가-있다)
 
 # 1장 CNI 란 무엇인가
 
@@ -1009,9 +1033,336 @@ Node network
 다른 Node
 ```
 
+# 3장 Calico 전체 아키텍처
+
+## 1️⃣ Calico 전체 아키텍처
+
+Calico는 크게 4개의 주요 컴포넌트로 구성된다.
+
+```
+Kubernetes Node
+
+ ┌──────────────────────────┐
+ │ kubelet                  │
+ │ container runtime        │
+ └──────────┬───────────────┘
+            │
+            │ CNI call
+            ▼
+        Calico CNI
+            │
+            ▼
+         Felix
+            │
+     ┌──────┴────────┐
+     │               │
+ routing table     iptables
+     │               │
+     ▼               ▼
+ Linux Kernel Networking
+     │
+     ▼
+ tunl0 / vxlan.calico / eth0
+```
+
+```
+추가로 cluster 레벨에는
+
+Typha
+BIRD
+
+가 있다.
+```
+
+## 2️⃣ Calico 주요 컴포넌트
+
+| 컴포넌트   | 역할                   |
+| ---------- | ---------------------- |
+| CNI plugin | Pod 네트워크 생성      |
+| Felix      | 라우팅 + iptables 관리 |
+| BIRD       | BGP 라우팅             |
+| Typha      | API server 부하 감소   |
+
+## 3️⃣ Calico CNI Plugin
+
+Pod 생성 시 kubelet이 실행한다.
+
+흐름
+
+```
+Pod 생성
+   ↓
+kubelet
+   ↓
+CNI plugin 실행
+   ↓
+Calico CNI
+```
+
+CNI가 하는 일
+
+```
+1. veth pair 생성
+2. Pod network namespace 연결
+3. Pod IP 할당
+4. route 설정
+```
+
+예
+
+```
+pod
+  eth0
+    ↓
+veth
+    ↓
+host interface
+```
+
+그리고
+
+```
+10.244.1.5
+```
+
+같은 Pod IP를 설정한다.
+
+## 4️⃣ Felix (Calico의 핵심)
+
+Felix는 Calico node agent다.
+
+DaemonSet으로 모든 node에 실행된다.
+
+확인
+
+```
+➜  kubectl get pods -n kube-system | grep calico
+```
+
+예
+
+```
+calico-node-abcde
+calico-node-fghij
+```
+
+이 Pod 안에 felix가 있다.
+
+### Felix의 역할
+
+```
+1️⃣ routing table 관리
+2️⃣ iptables rule 관리
+3️⃣ network policy 적용
+4️⃣ tunnel interface 관리
+```
+
+```
+즉, Pod networking의 실제 executor이다.
+```
+
+### Felix가 하는 일 (가장 중요)
+
+예
+
+```
+node1 PodCIDR = 10.244.1.0/24
+node2 PodCIDR = 10.244.2.0/24
+```
+
+#### Felix는 routing table을 만든다.
+
+확인
+
+```
+➜  ip route
+10.244.2.0/24 via 192.168.10.12 dev tunl0
+```
+
+즉
+
+```
+node2 pod network → tunl0
+```
+
+이걸 Felix가 만든다.
+
+#### Felix는 iptables도 만든다.
+
+예
+
+```
+iptables -t nat -L
+또는
+iptables -L
+```
+
+Calico 체인
+
+```
+cali-xxxxx
+```
+
+예
+
+```
+cali-FORWARD
+cali-INPUT
+cali-OUTPUT
+```
+
+## 6️⃣ BIRD (BGP daemon)
+
+Calico의 또 다른 핵심.
+
+BIRD는 BGP routing daemon이다.
+
+역할
+
+```
+Node 간 Pod CIDR 광고
+```
+
+예
+
+```
+node1
+10.244.1.0/24
+
+node2
+10.244.2.0/24
+```
+
+node1이 BGP로 광고
+
+```
+10.244.1.0/24 reachable via node1
+```
+
+node2도 광고
+
+```
+10.244.2.0/24 reachable via node2
+```
+
+그래서 라우팅 테이블이 만들어진다.
+
+확인
+
+```
+➜  calicoctl node status
+```
+
+또는
+
+```
+birdcl show route
+```
+
+## 7️⃣ Typha
+
+Typha는 대규모 cluster에서 사용한다.
+
+### Felix 의 문제점
+
+Felix → API Server watch node가 많으면
+
+```
+1000 nodes
+→ 1000 watch
+```
+
+API server 부담.
+
+그래서
+
+```
+API Server
+    ↓
+Typha
+    ↓
+Felix들
+```
+
+즉, watch proxy다.
+
+## 8️⃣ Calico 네트워크 모드
+
+| 모드  | 설명               |
+| ----- | ------------------ |
+| BGP   | encapsulation 없음 |
+| IPIP  | L3 tunnel          |
+| VXLAN | L2 over UDP        |
+
+IPIP
+
+```
+Pod packet
+   ↓
+IPIP encapsulation
+   ↓
+node transport
+```
+
+VXLAN
+
+```
+UDP 4789
+```
+
+BGP
+
+```
+direct routing
+```
+
+## 9️⃣ Pod 생성 시 실제 흐름
+
+전체 흐름
+
+```
+Pod 생성
+   ↓
+kubelet
+   ↓
+CNI plugin 호출
+   ↓
+Calico CNI
+   ↓
+veth 생성
+   ↓
+Pod IP 할당
+   ↓
+Felix
+   ↓
+route + iptables 설정
+   ↓
+Pod 네트워크 활성화
+```
+
+## 🔥 Calico 구조 핵심 정리
+
+```
+CNI
+  ↓
+Pod interface 생성
+
+Felix
+  ↓
+iptables + routing
+
+BIRD
+  ↓
+BGP route exchange
+
+Typha
+  ↓
+watch scaling
+```
+
 ---
 
-# 3장 Calico 는 보통 host-ipam 을 사용하지 않는다.
+# 4장 Calico 는 보통 host-ipam 을 사용하지 않는다.
 
 ### 1️⃣ /var/lib/cni/networks 는 언제 사용되는가
 
@@ -1292,7 +1643,7 @@ IP 할당
 
 ---
 
-# 4장 Calico가 Pod 생성시 실제로 하는 일
+# 5장 Calico가 Pod 생성시 실제로 하는 일
 
 ## 1️⃣ Pod 생성 → kubelet → CNI 호출
 
@@ -1703,7 +2054,7 @@ vxlan 확인
 
 ---
 
-# 5장 아니 나는 Calico 의 IPIP Mode 라구요!
+# 6장 아니 나는 Calico 의 IPIP Mode 라구요!
 
 ```
 ip link
@@ -2064,4 +2415,250 @@ ip tunnel
 
 ```
 ip tunnel add tunl0 mode ipip
+```
+
+---
+
+# 7장 그렇다면 CNI 는 외부 node 와 통신할 때 어떻게 동작할까
+
+질문
+
+```
+한가지 궁금한게 생겼어 calico ipipmode 라고 치고,
+node1 의 pod1 에서 node2의 pod2 로 통신을 할건데
+ipipmode 는 layer 3 에서 동작하고 그러면
+실제 애플리케이션에서 통신할 때 port 는 필요없이 ip 만 있으면 되는 거야?
+```
+
+결론부터 말하면
+
+```
+IPIP (Calico IPIP mode)는 L3 터널이기 때문에 통신 자체에는 port가 필요 없다.
+하지만 실제 애플리케이션 통신은 여전히 L4 port를 사용한다.
+```
+
+즉 두 레이어를 분리해서 봐야 한다.
+
+## 1️⃣ Pod → Pod 통신에서 실제 흐름
+
+상황
+
+```
+node1
+  pod1 (10.244.1.2)
+
+node2
+  pod2 (10.244.2.3)
+```
+
+pod1이 pod2로 요청
+
+```
+10.244.1.2 → 10.244.2.3
+```
+
+예
+
+```
+curl 10.244.2.3:8080
+```
+
+여기서 port 8080은 애플리케이션(TCP/UDP) 이다.
+
+## 2️⃣ Calico IPIP가 하는 일
+
+IPIP는 Pod 네트워크를 Node 간에 전달하는 터널이다.
+
+즉 Pod IP packet을 Node IP packet 안에 넣어서 전송한다.
+
+구조
+
+```
+Outer IP header (node IP)
+    ↓
+Inner IP header (pod IP)
+    ↓
+TCP / UDP
+```
+
+예
+
+```
+Outer IP
+src = node1
+dst = node2
+
+Inner IP
+src = 10.244.1.2
+dst = 10.244.2.3
+
+TCP
+dst port = 8080
+```
+
+## 3️⃣ 실제 패킷 구조
+
+node1 → node2
+
+```
+IP (node1 → node2)
+  protocol = IPIP
+    ↓
+IP (10.244.1.2 → 10.244.2.3)
+    ↓
+TCP
+  dst port = 8080
+```
+
+여기서 중요한 것
+
+IPIP 자체는 port가 없다.
+
+왜냐하면
+
+```
+IP protocol number = 4
+```
+
+이다.
+
+즉
+
+```
+TCP (6)
+UDP (17)
+IPIP (4)
+```
+
+처럼 IP protocol 필드로 구분한다.
+
+## 4️⃣ 그래서 방화벽에서 중요한 것
+
+```
+Node 간 통신에서 필요한 것은 IP protocol 4 허용이다.
+```
+
+예
+
+```
+iptables
+
+-A INPUT -p 4 -j ACCEPT
+```
+
+```
+여기서 -p 4는 IPIP protocol이다.
+
+즉, port 없음
+```
+
+## 5️⃣ 패킷 흐름 전체
+
+pod1 → pod2
+
+```
+pod1
+ 10.244.1.2
+    ↓
+veth
+    ↓
+node1 routing
+    ↓
+tunl0 (ipip tunnel)
+    ↓
+encapsulation
+    ↓
+node1 eth0
+    ↓
+internet / network
+    ↓
+node2 eth0
+    ↓
+tunl0 decap
+    ↓
+routing
+    ↓
+veth
+    ↓
+pod2
+```
+
+## 6️⃣ 실제 Linux 인터페이스
+
+Calico IPIP 사용하면 node에 생긴다.
+
+```
+tunl0
+```
+
+확인
+
+```
+➜  ip a
+```
+
+예
+
+```
+tunl0: <POINTOPOINT,NOARP>
+```
+
+라우팅 확인
+
+```
+➜  ip route
+```
+
+예
+
+```
+10.244.2.0/24 via 192.168.10.2 dev tunl0
+```
+
+## 7️⃣ 핵심 정리
+
+| 구분                       | port 필요? |
+| -------------------------- | ---------- |
+| IPIP 터널                  | ❌ 없음    |
+| Pod 애플리케이션 (TCP/UDP) | ✅ 필요    |
+
+즉
+
+```
+TCP/UDP port
+   ↓
+Pod network packet
+   ↓
+IPIP encapsulation
+   ↓
+Node IP transport
+```
+
+## 8️⃣ Calico에는 3가지 모드가 있다.
+
+```
+IPIP
+VXLAN
+BGP (no encapsulation)
+```
+
+차이
+
+| 모드  | encapsulation |
+| ----- | ------------- |
+| IPIP  | L3            |
+| VXLAN | L2 over UDP   |
+| BGP   | 없음          |
+
+VXLAN이면
+
+```
+UDP 4789 port 사용
+```
+
+하지만 IPIP 이면
+
+```
+port 없음
+IP protocol 4
 ```
