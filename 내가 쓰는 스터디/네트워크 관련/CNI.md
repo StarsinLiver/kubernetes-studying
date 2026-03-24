@@ -113,6 +113,29 @@
   - [6️⃣ 실제 Linux 인터페이스](#6️⃣-실제-linux-인터페이스)
   - [7️⃣ 핵심 정리](#7️⃣-핵심-정리)
   - [8️⃣ Calico에는 3가지 모드가 있다.](#8️⃣-calico에는-3가지-모드가-있다)
+- [8️장 Calico encapsulation 과 decapsultion](#8️장-calico-encapsulation-과-decapsultion)
+  - [1️⃣ Calico IPIP 모드 encapsulation 과 decapsultion](#1️⃣-calico-ipip-모드-encapsulation-과-decapsultion)
+    - [1️⃣ Pod1에서 패킷 생성](#1️⃣-pod1에서-패킷-생성)
+    - [2️⃣ node1에서 routing lookup](#2️⃣-node1에서-routing-lookup)
+    - [3️⃣ Encapsulation (IPIP)](#3️⃣-encapsulation-ipip)
+    - [4️⃣ node2 도착](#4️⃣-node2-도착)
+    - [5️⃣ Decapsulation](#5️⃣-decapsulation)
+    - [6️⃣ node2 routing](#6️⃣-node2-routing)
+    - [7️⃣ pod2에서 애플리케이션 처리](#7️⃣-pod2에서-애플리케이션-처리)
+    - [8️⃣ 전체 흐름 요약](#8️⃣-전체-흐름-요약)
+    - [9️⃣ 실제 tcpdump 보면 이렇게 보인다](#9️⃣-실제-tcpdump-보면-이렇게-보인다)
+    - [🔥 핵심 포인트](#-핵심-포인트)
+  - [2️⃣ Calico VXLAN 모드 encapsulation 과 decapsultion](#2️⃣-calico-vxlan-모드-encapsulation-과-decapsultion)
+    - [1️⃣ Pod1에서 패킷 생성](#1️⃣-pod1에서-패킷-생성-1)
+    - [2️⃣ node1 routing lookup](#2️⃣-node1-routing-lookup)
+    - [3️⃣ VXLAN Encapsulation (UDP)](#3️⃣-vxlan-encapsulation-udp)
+    - [4️⃣ 네트워크 전송](#4️⃣-네트워크-전송)
+    - [5️⃣ node2 도착](#5️⃣-node2-도착)
+    - [6️⃣ Decapsulation](#6️⃣-decapsulation)
+    - [7️⃣ node2 routing](#7️⃣-node2-routing)
+    - [8️⃣ pod2 애플리케이션](#8️⃣-pod2-애플리케이션)
+    - [9️⃣ 실제 tcpdump에서 확인하기](#9️⃣-실제-tcpdump에서-확인하기)
+  - [핵심 정리](#핵심-정리)
 
 # 1장 CNI 란 무엇인가
 
@@ -2661,4 +2684,523 @@ UDP 4789 port 사용
 ```
 port 없음
 IP protocol 4
+```
+
+---
+
+# 8️장 Calico encapsulation 과 decapsultion
+
+## 1️⃣ Calico IPIP 모드 encapsulation 과 decapsultion
+
+Calico IPIP 모드에서 Pod → Pod 통신이 실제로 어떻게 encapsulation / decapsulation 되는지를
+리눅스 네트워크 레벨까지 단계별로 설명해보자.
+
+예시 환경을 먼저 만들자.
+
+```
+node1
+  node IP : 192.168.0.10
+  pod1    : 10.244.1.5
+
+node2
+  node IP : 192.168.0.20
+  pod2    : 10.244.2.8
+  app     : 8080
+```
+
+pod1에서 요청:
+
+```
+curl http://10.244.2.8:8080
+```
+
+### 1️⃣ Pod1에서 패킷 생성
+
+pod1 내부 애플리케이션이 패킷을 만든다.
+
+```
+SRC IP   : 10.244.1.5
+SRC PORT : random
+
+DST IP   : 10.244.2.8
+DST PORT : 8080
+```
+
+즉 원래 패킷은
+
+```
+10.244.1.5:34521 → 10.244.2.8:8080
+```
+
+이 상태다.
+
+이 패킷은 pod1의 eth0 → veth → node1 네트워크 스택으로 올라간다.
+
+### 2️⃣ node1에서 routing lookup
+
+node1의 routing table에는 이런 항목이 있다.
+
+```
+10.244.2.0/24 via 192.168.0.20 dev tunl0
+```
+
+의미
+
+```
+10.244.2.x pod network는
+node2를 통해 가라
+그리고 IPIP tunnel 사용
+```
+
+그래서 node1은
+
+```
+tunl0
+```
+
+인터페이스로 보낸다.
+
+### 3️⃣ Encapsulation (IPIP)
+
+여기서 IPIP encapsulation이 일어난다.
+
+원래 패킷을 그대로 새로운 IP 패킷 안에 넣는다.
+
+```
+Inner packet (원래 pod 패킷)
+SRC : 10.244.1.5
+DST : 10.244.2.8
+PORT : 8080
+
+Outer packet (node 간 패킷)
+SRC : 192.168.0.10
+DST : 192.168.0.20
+PROTO : IPIP (4)
+```
+
+결과 구조
+
+```
+Outer IP Header
+  SRC 192.168.0.10
+  DST 192.168.0.20
+  Protocol = IPIP
+
+    ↓ encapsulated
+
+Inner IP Header
+  SRC 10.244.1.5
+  DST 10.244.2.8
+  PORT 8080
+```
+
+즉 실제 wire에서 흐르는 패킷은
+
+```
+192.168.0.10 → 192.168.0.20
+(IPIP tunnel)
+```
+
+```
+여기서 중요한 점
+
+👉 node firewall은 8080을 볼 수 없다.
+   왜냐면 outer packet에는 port가 없다.
+```
+
+### 4️⃣ node2 도착
+
+node2 NIC가 패킷을 받는다.
+
+```
+DST : 192.168.0.20
+PROTO : IPIP
+```
+
+Linux kernel이 이것을 보고
+
+```
+IPIP packet → tunl0
+```
+
+로 보낸다.
+
+### 5️⃣ Decapsulation
+
+```
+tunl0 인터페이스에서 outer header 제거한다.
+```
+
+즉
+
+```
+[Decapsulation]
+192.168.0.10 → 192.168.0.20
+
+이 헤더는 사라지고 inner packet만 남는다.
+```
+
+```
+[Decapsulation 하고 남은 진짜 패킷]
+10.244.1.5 → 10.244.2.8:8080
+
+이제 일반 패킷이 된다.
+```
+
+### 6️⃣ node2 routing
+
+node2 routing table
+
+```
+10.244.2.8 dev cali123abc
+```
+
+그래서
+
+```
+node2
+↓
+veth
+↓
+pod2
+```
+
+로 전달된다.
+
+### 7️⃣ pod2에서 애플리케이션 처리
+
+```
+pod2 입장에서는
+10.244.1.5 → 10.244.2.8:8080
+그냥 일반 TCP 패킷이다.
+```
+
+그래서
+
+```
+app :8080
+```
+
+이 정상적으로 받는다.
+
+### 8️⃣ 전체 흐름 요약
+
+```
+pod1
+10.244.1.5
+   |
+   v
+node1 routing
+   |
+   v
+IPIP encapsulation
+outer 192.168.0.10 → 192.168.0.20
+inner 10.244.1.5 → 10.244.2.8
+   |
+   v
+network
+   |
+   v
+node2
+   |
+   v
+IPIP decapsulation
+   |
+   v
+10.244.1.5 → 10.244.2.8:8080
+   |
+   v
+pod2
+```
+
+### 9️⃣ 실제 tcpdump 보면 이렇게 보인다
+
+```
+node1에서 tcpdump -i any proto 4
+
+보면
+
+IP 192.168.0.10 > 192.168.0.20: IPIP
+```
+
+```
+node2에서 tcpdump -i any host 10.244.2.8
+
+보면
+
+10.244.1.5 → 10.244.2.8:8080
+```
+
+이렇게 보인다.
+
+### 🔥 핵심 포인트
+
+IPIP에서는
+
+```
+pod packet
+↓
+IPIP encapsulation
+↓
+node → node
+↓
+decapsulation
+↓
+pod 전달
+```
+
+그래서
+
+```
+Node firewall은
+IPIP protocol(4)만 허용하면 된다
+```
+
+## 2️⃣ Calico VXLAN 모드 encapsulation 과 decapsultion
+
+먼저 동일한 환경을 가정하자.
+
+```
+node1
+  node IP : 192.168.0.10
+  pod1    : 10.244.1.5
+
+node2
+  node IP : 192.168.0.20
+  pod2    : 10.244.2.8
+  app     : 8080
+```
+
+pod1에서 요청
+
+```
+curl http://10.244.2.8:8080
+```
+
+### 1️⃣ Pod1에서 패킷 생성
+
+pod1 애플리케이션이 TCP 패킷 생성
+
+```
+SRC IP   : 10.244.1.5
+SRC PORT : random
+
+DST IP   : 10.244.2.8
+DST PORT : 8080
+```
+
+즉 Inner Packet
+
+```
+10.244.1.5:34521 → 10.244.2.8:8080
+```
+
+이 패킷이
+
+```
+pod1 eth0
+  ↓
+veth
+  ↓
+node1 network stack
+```
+
+으로 올라간다.
+
+### 2️⃣ node1 routing lookup
+
+node1 routing table
+
+예:
+
+```
+10.244.2.0/24 via vxlan.calico
+```
+
+그래서 node1은
+
+```
+vxlan.calico
+```
+
+인터페이스로 보낸다.
+
+여기서 VXLAN encapsulation이 발생한다.
+
+### 3️⃣ VXLAN Encapsulation (UDP)
+
+VXLAN은 UDP 기반 터널링이다.
+
+즉 패킷 구조가 이렇게 된다.
+
+```
+Inner Packet (원래 pod 패킷)
+SRC : 10.244.1.5
+DST : 10.244.2.8
+PORT : 8080
+
+Outer Packet
+SRC IP : 192.168.0.10
+DST IP : 192.168.0.20
+PROTO  : UDP
+PORT   : 4789
+```
+
+그리고 VXLAN header가 추가된다.
+
+```
+[VXLAN header]
+VNI (network id)
+```
+
+즉 실제 네트워크에서는
+
+```
+192.168.0.10:xxxxx → 192.168.0.20:4789
+```
+
+패킷이 흐른다.
+
+### 4️⃣ 네트워크 전송
+
+이제 패킷은 일반 UDP 패킷이므로
+
+네트워크에서는 그냥
+
+```
+node1 → node2 UDP 4789
+```
+
+으로 전달된다.
+
+```
+그래서 VXLAN에서 필요한 방화벽 포트는
+
+UDP 4789
+
+이다.
+```
+
+### 5️⃣ node2 도착
+
+node2 NIC가 패킷을 받는다.
+
+```
+DST IP   : 192.168.0.20
+DST PORT : 4789
+```
+
+Linux kernel이
+
+```
+vxlan.calico
+```
+
+인터페이스로 전달한다.
+
+### 6️⃣ Decapsulation
+
+vxlan.calico 인터페이스에서
+
+```
+VXLAN header 제거
+UDP 제거
+outer IP 제거
+```
+
+이렇게 된다.
+
+그러면 남는 것은
+
+```
+10.244.1.5 → 10.244.2.8:8080
+```
+
+즉 원래 Pod 패킷이다.
+
+### 7️⃣ node2 routing
+
+node2 routing table
+
+예
+
+```
+10.244.2.8 dev caliXXXX
+```
+
+그래서
+
+```
+node2
+  ↓
+veth
+  ↓
+pod2
+```
+
+로 전달된다.
+
+### 8️⃣ pod2 애플리케이션
+
+pod2 입장에서는
+
+```
+10.244.1.5 → 10.244.2.8:8080
+```
+
+일반 TCP 패킷이다.
+
+그래서
+
+```
+app:8080
+```
+
+이 정상적으로 처리한다.
+
+### 9️⃣ 실제 tcpdump에서 확인하기
+
+```
+node1에서 tcpdump -i any udp port 4789
+
+보면
+
+192.168.0.10 → 192.168.0.20 VXLAN
+```
+
+```
+node2에서 tcpdump -i any host 10.244.2.8
+
+보면
+
+10.244.1.5 → 10.244.2.8:8080
+```
+
+## 핵심 정리
+
+| 항목          | IPIP          | VXLAN       |
+| ------------- | ------------- | ----------- |
+| Encapsulation | IP 안에 IP    | UDP 기반    |
+| 프로토콜      | IP protocol 4 | UDP 4789    |
+| 헤더          | IP            | UDP + VXLAN |
+| L2 포함       | ❌            | ⭕          |
+| NAT 친화성    | 낮음          | 높음        |
+
+VXLAN 패킷 구조
+
+```
+IP
+ UDP
+  VXLAN
+   Ethernet
+    IP
+     TCP (원래패킷)
+```
+
+IPIP
+
+```
+IP
+ IP
+  TCP (원래패킷)
 ```
