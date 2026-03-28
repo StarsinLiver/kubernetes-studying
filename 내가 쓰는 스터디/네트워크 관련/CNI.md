@@ -15,7 +15,7 @@
   - [12. CNI command](#12-cni-command)
     - [ADD](#add)
     - [DEL](#del)
-  - [CHECK](#check)
+    - [CHECK](#check)
   - [13. 실제 CNI 호출 흐름](#13-실제-cni-호출-흐름)
   - [14. Pod IP는 누가 주는가](#14-pod-ip는-누가-주는가)
   - [15. Kubernetes 네트워크 규칙](#15-kubernetes-네트워크-규칙)
@@ -476,7 +476,7 @@ iptables
 IPAM lease
 ```
 
-## CHECK
+### CHECK
 
 역할
 
