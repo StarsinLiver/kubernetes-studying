@@ -207,6 +207,7 @@ Service → Pod 연결
 👉 예:
 
 my-service.default.svc.cluster.local
+
 🔹 Ingress
 
 외부 HTTP 라우팅
