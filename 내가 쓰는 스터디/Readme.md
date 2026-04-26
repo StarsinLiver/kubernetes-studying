@@ -230,6 +230,7 @@ Pod 내부 저장소
 동적 프로비저닝
 
 🔐 7. 설정 / 보안
+
 🔹 ConfigMap
 
 설정값 저장
@@ -272,6 +273,7 @@ Pod 배치 전략
 
 Pod 생성 시:
 
+```
 kubectl apply
 ↓
 kube-apiserver
@@ -285,3 +287,4 @@ kubelet → container runtime 호출
 컨테이너 생성
 ↓
 CNI → 네트워크 붙임
+```
